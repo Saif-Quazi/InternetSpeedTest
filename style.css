@@ -1,0 +1,42 @@
+:root {
+    --text-col: hsl(0, 0%, 90%);
+    --text-col-muted: hsl(0, 0%, 70%);
+    --bg-col: hsl(0, 0%, 10%);
+    --bg-col-secondary: hsl(0, 0%, 15%);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: none;
+    outline: none;
+    text-decoration: none;
+    font-family: 'Open Sans', sans-serif;
+    background: none;
+    color: var(--text-col);
+}
+
+html, body {
+    width: 100vw;
+    height: 100vh;
+    padding: 0;
+    margin: 0;
+    background-color: var(--bg-col);
+}
+
+main {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#startBtn {
+    padding: 25px;
+    font-size: 48px;
+    font-weight: 100;
+    letter-spacing: 2px;
+    background-color: var(--bg-col-secondary);
+}
