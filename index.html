@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,10 +11,44 @@
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
 
 </head>
+
 <body>
     <main>
         <button id="startBtn">START</button>
+        <div id="results">
+            <div id="mainResults">
+                <div class="tile">
+                    <span class="type">Download:</span>
+                    <span class="value" id="downloadSpeed">0</span>
+                    <span class="bitrate">Mbps</span>
+                </div>
+                <div class="tile">
+                    <span class="type">Upload:</span>
+                    <span class="value" id="uploadSpeed">0</span>
+                    <span class="bitrate">Mbps</span>
+                </div>
+            </div>
+            <div id="extraResults">
+                <div class="tile">
+                    <span class="type">Ping:</span>
+                    <span class="value" id="ping">0</span>
+                    <span class="bitrate">ms</span>
+                </div>
+                <div class="tile">
+                    <span class="type">Jitter:</span>
+                    <span class="value" id="jitter">0</span>
+                    <span class="bitrate">ms</span>
+                </div>
+                <div class="tile">
+                    <span class="type">Latency:</span>
+                    <span class="value" id="latency">0</span>
+                    <span class="bitrate">ms</span>
+                </div>
+            </div>
+        </div>
     </main>
     <script src="main.js"></script>
+    <script src="speedtest.js"></script>
 </body>
+
 </html>
