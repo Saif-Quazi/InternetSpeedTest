@@ -1,53 +1,76 @@
+var startBtn = document.getElementById('startBtn');
 
-const startBtn = document.getElementById('startBtn');
-const results = document.getElementById('results');
-const valueElements = Array.from(document.querySelectorAll('.value'));
-let progress = 0;
-const TOTAL_TESTS = 4;
-let completedTests = 0;
-startBtn.addEventListener('click', startSpeedTest);
-async function startSpeedTest() {
+function runSpeedTest() {
     startBtn.classList.add('disabled');
-    await sleep(0.5);
     startBtn.style.display = 'none';
-    results.style.display = 'flex';
-    await sleep(0.1);
-    results.style.opacity = '1';
-    completedTests = 0;
-    updateProgress();
-    const testServer = 'https://1.1.1.1/cdn-cgi/trace';
-    const downloadFile = 'https://speedtest.tele2.net/100MB.zip';
-    const pingTimes = await measurePing(testServer, 10);
-    const ping = average(pingTimes);
-    const jitter = calculateJitter(pingTimes);
-    completeTest();
-    const downloadSpeed = await measureDownload(downloadFile, 100_000_000);
-    completeTest();
-    const uploadSpeed = await measureUpload('https://httpbin.org/post', 10);
-    completeTest();
-    updateResults(downloadSpeed, uploadSpeed, ping, jitter, ping);
+    showResults();
+    updateResults();
+    runPing();
 }
 
-function completeTest() {
-    completedTests++;
-    updateProgress();
-}
-
-function updateProgress() {
-    progress = Math.floor((completedTests / TOTAL_TESTS) * 100);
-}
-
-function updateResults(downloadSpeed, uploadSpeed, ping, jitter, latency) {
-    const values = [downloadSpeed, uploadSpeed, ping, jitter, latency];
-    valueElements.forEach((el, i) => {
-        el.innerText = values[i];
-        el.classList.remove('show');
-        void el.offsetWidth;
-        el.classList.add('show');
+function runPing() {
+    measurePing().then(function (pingArr) {
+        var ping = Array.isArray(pingArr) ? Math.round(pingArr.reduce(function (a, b) { return a + b; }, 0) / pingArr.length) : '--';
+        var jitter = Array.isArray(pingArr) ? calculateJitter(pingArr) : '--';
+        updateResults(undefined, undefined, ping, jitter, ping);
+        setTimeout(function () { runDownload(ping, jitter); }, 100);
     });
-    startBtn.classList.remove('disabled');
 }
 
-function sleep(seconds) {
-    return new Promise(resolve => setTimeout(resolve, seconds * 1000));
+function runDownload(ping, jitter) {
+    let animFrame;
+    let displayedDownload = 0;
+    let lastEstimate = 0;
+    const downloadEl = document.getElementById('downloadSpeed');
+    downloadEl.classList.remove('active');
+    downloadEl.classList.add('muted');
+    function animateDownload(target) {
+        if (typeof target !== 'number' || isNaN(target)) return;
+        lastEstimate = target;
+        if (Math.abs(displayedDownload - target) < 0.1) {
+            displayedDownload = target;
+            updateResults(Math.round(displayedDownload), undefined, ping, jitter, ping);
+            return;
+        }
+        displayedDownload += (target - displayedDownload) * 0.2;
+        updateResults(Math.round(displayedDownload), undefined, ping, jitter, ping);
+        downloadEl.classList.remove('active');
+        downloadEl.classList.add('muted');
+        animFrame = requestAnimationFrame(function () { animateDownload(lastEstimate); });
+    }
+    measureDownload(undefined, function (est) {
+        animateDownload(est);
+    }).then(function (downloadResult) {
+        if (animFrame) cancelAnimationFrame(animFrame);
+        var download = downloadResult && !downloadResult.error ? Math.round(downloadResult) : '--';
+        if (download !== '--') {
+            downloadEl.className = 'value active';
+            downloadEl.style.color = '#fff';
+        }
+        updateResults(download, undefined, ping, jitter, ping);
+        setTimeout(function () { runUpload(download, ping, jitter); }, 100);
+    });
 }
+
+function runUpload(download, ping, jitter) {
+    const uploadEl = document.getElementById('uploadSpeed');
+    uploadEl.classList.remove('active');
+    uploadEl.classList.add('muted');
+    measureUpload(undefined, 1, function (est) {
+        updateResults(download, est, ping, jitter, ping);
+        uploadEl.classList.remove('active');
+        uploadEl.classList.add('muted');
+    }).then(function (uploadResult) {
+        var upload = uploadResult && !uploadResult.error ? Math.round(uploadResult) : '--';
+        if (upload !== '--') {
+            uploadEl.className = 'value active';
+            uploadEl.style.color = '#fff';
+        }
+        updateResults(download, upload, ping, jitter, ping);
+        setTimeout(function () {
+            startBtn.classList.remove('disabled');
+        }, 300);
+    });
+}
+
+startBtn.addEventListener('click', runSpeedTest);

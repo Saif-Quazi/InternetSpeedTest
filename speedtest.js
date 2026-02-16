@@ -1,81 +1,111 @@
-function average(arr) {
-    return Math.round(arr.reduce((a, b) => a + b) / arr.length);
-}
 
-function calculateJitter(times) {
-    let diffs = [];
-    for (let i = 1; i < times.length; i++) {
-        diffs.push(Math.abs(times[i] - times[i - 1]));
-    }
-    return Math.round(diffs.reduce((a, b) => a + b) / diffs.length);
-}
 
-async function measurePing(url, samples = 10) {
-    const times = [];
-    for (let i = 0; i < samples; i++) {
-        const start = performance.now();
-        await fetch(url, { method: 'HEAD', cache: 'no-store' });
-        times.push(performance.now() - start);
-    }
-    return times;
-}
+var DOWNLOAD_URL = 'http://localhost:8787';
+var UPLOAD_URL = 'https://upload-test.quazisaif09.workers.dev';
 
-async function measureDownload(url, minDuration = 8) {
-    let totalBytes = 0;
-    let start = performance.now();
-    let duration = 0;
-    let firstChunkTime = null;
-    let downloadCount = 0;
-    while (duration < minDuration * 1000) {
-        const response = await fetch(url, { cache: 'no-store' });
-        const reader = response.body.getReader();
-        let done = false;
-        let thisDownloadBytes = 0;
-        while (!done) {
-            const { value, done: chunkDone } = await reader.read();
-            if (value) {
-                if (!firstChunkTime) firstChunkTime = performance.now();
-                totalBytes += value.length;
-                thisDownloadBytes += value.length;
-            }
-            done = chunkDone;
+function measurePing(url, samples) {
+    url = url || DOWNLOAD_URL;
+    samples = samples || 8;
+    var times = [];
+    var promise = Promise.resolve();
+    function doPing(i) {
+        if (i >= samples) {
+            var filtered = times.filter(function(t) { return t !== null; });
+            if (!filtered.length) return Promise.resolve({ error: 'Ping failed' });
+            return Promise.resolve(filtered);
         }
-        downloadCount++;
-        console.log(`Download #${downloadCount}: ${thisDownloadBytes} bytes`);
-        duration = performance.now() - start;
+        var start = performance.now();
+        return fetch(url + '?t=' + Date.now() + '_' + Math.random(), { method: 'HEAD', cache: 'no-store' })
+            .then(function() { times.push(performance.now() - start); })
+            .catch(function() { times.push(null); })
+            .then(function() { return doPing(i + 1); });
     }
-    const effectiveDuration = Math.max(0, (duration - 1000) / 1000);
-    const effectiveBytes = totalBytes * (effectiveDuration / (duration / 1000));
-    const bits = effectiveBytes * 8;
-    console.log(`Total bytes downloaded: ${totalBytes}`);
-    console.log(`Total duration: ${(duration / 1000).toFixed(2)}s, Effective duration: ${effectiveDuration.toFixed(2)}s`);
-    return ((bits / effectiveDuration) / 1_000_000).toFixed(1);
+    return doPing(0);
 }
 
-async function measureUpload(url, sizeMB = 20, minDuration = 8) {
-    const data = new Blob([new Uint8Array(sizeMB * 1024 * 1024)]);
-    let totalBytes = 0;
-    let start = performance.now();
-    let duration = 0;
-    let firstChunkTime = null;
-    let uploadCount = 0;
-    while (duration < minDuration * 1000) {
-        const uploadStart = performance.now();
-        await fetch(url, {
+function measureDownload(url, onEstimate) {
+    url = url || DOWNLOAD_URL;
+    var results = [], stable = false, rounds = 0;
+    function runRound() {
+        if ((stable && results.length >= 6) || rounds >= 50) return Promise.resolve(average(results).toFixed(1));
+        var totalBytes = 0;
+        var start = performance.now();
+        return fetch(url + '?t=' + Date.now() + '_' + Math.random(), { cache: 'no-store' })
+            .then(function(resp) {
+                if (!resp.body) return { error: 'No response body' };
+                var reader = resp.body.getReader();
+                function readAll() {
+                    return new Promise(function(resolve, reject) {
+                        function readNext() {
+                            reader.read().then(function(result) {
+                                if (result.done) {
+                                    resolve();
+                                    return;
+                                }
+                                if (result.value) totalBytes += result.value.length;
+                                readNext();
+                            }).catch(reject);
+                        }
+                        readNext();
+                    });
+                }
+                return readAll();
+            })
+            .then(function() {
+                var duration = (performance.now() - start) / 1000;
+                var mbps = duration > 0 ? (totalBytes * 8 / duration) / 1e6 : 0;
+                results.push(mbps);
+                if (typeof onEstimate === 'function') onEstimate(average(results));
+                rounds++;
+                if (results.length >= 3) {
+                    var last3 = results.slice(-3);
+                    var max = Math.max.apply(null, last3), min = Math.min.apply(null, last3);
+                    if (min > 0 && (max - min) / min < 0.05) stable = true;
+                }
+                return runRound();
+            });
+    }
+    return runRound();
+}
+
+function measureUpload(url, sizeMB, onEstimate) {
+    url = url || UPLOAD_URL;
+    sizeMB = sizeMB || 10;
+    var data = new Blob([new Uint8Array(sizeMB * 1024 * 1024)]);
+    var results = [], stable = false, rounds = 0;
+    function runRound() {
+        if ((stable && results.length >= 6) || rounds >= 50) return Promise.resolve(average(results).toFixed(1));
+        var start = performance.now();
+        return fetch(url + '?t=' + Date.now() + '_' + Math.random(), {
             method: 'POST',
             body: data,
             cache: 'no-store'
-        });
-        if (!firstChunkTime) firstChunkTime = performance.now();
-        totalBytes += data.size;
-        uploadCount++;
-        console.log(`Upload #${uploadCount}: ${data.size} bytes`);
-        duration = performance.now() - start;
+        })
+            .then(function(resp) {
+                if (!resp.ok) return { error: 'Upload failed' };
+                var duration = (performance.now() - start) / 1000;
+                var mbps = duration > 0 ? (data.size * 8 / duration) / 1e6 : 0;
+                results.push(mbps);
+                if (typeof onEstimate === 'function') onEstimate(average(results));
+                rounds++;
+                if (results.length >= 3) {
+                    var last3 = results.slice(-3);
+                    var max = Math.max.apply(null, last3), min = Math.min.apply(null, last3);
+                    if (min > 0 && (max - min) / min < 0.05) stable = true;
+                }
+                return runRound();
+            });
     }
-    const effectiveDuration = Math.max(0, (duration - 1000) / 1000);
-    const effectiveBytes = totalBytes * (effectiveDuration / (duration / 1000));
-    const bits = effectiveBytes * 8;
-    console.log(`Total bytes uploaded: ${totalBytes}`);
-    console.log(`Total duration: ${(duration / 1000).toFixed(2)}s, Effective duration: ${effectiveDuration.toFixed(2)}s`);
-    return ((bits / effectiveDuration) / 1_000_000).toFixed(1);
+    return runRound();
+}
+
+function average(arr) {
+    if (!arr.length) return 0;
+    return Math.round(arr.reduce(function(a, b) { return a + b; }, 0) / arr.length);
+}
+
+function calculateJitter(times) {
+    var diffs = [];
+    for (var i = 1; i < times.length; i++) diffs.push(Math.abs(times[i] - times[i - 1]));
+    return diffs.length ? Math.round(diffs.reduce(function(a, b) { return a + b; }, 0) / diffs.length) : 0;
 }

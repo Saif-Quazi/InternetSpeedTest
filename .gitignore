@@ -1,0 +1,27 @@
+# Node & package manager logs
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# VSCode
+.vscode/
+
+# Environment files
+.env
+
+# upload-test build/env
+upload-test/node_modules/
+upload-test/.wrangler/
+upload-test/.dev*
+upload-test/dist/
+upload-test/build/
+upload-test/.env
+
+# download-test build/env
+download-test/node_modules/
+download-test/.wrangler/
+download-test/.dev*
+download-test/dist/
+download-test/build/
+download-test/.env
