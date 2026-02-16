@@ -1,6 +1,6 @@
 
 
-var DOWNLOAD_URL = 'http://localhost:8787';
+var DOWNLOAD_URL = 'https://download-test.quazisaif09.workers.dev'; // Update to your deployed download worker URL
 var UPLOAD_URL = 'https://upload-test.quazisaif09.workers.dev';
 
 function measurePing(url, samples) {
